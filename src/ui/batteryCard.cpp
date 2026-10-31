@@ -31,6 +31,8 @@
 // 采样平滑与确认次数，抑制 ADC 噪声导致的百分比跳动
 #define BATTERY_SAMPLE_ALPHA   0.25f
 #define BATTERY_CONFIRM_COUNT  2
+// 拔掉充电器后等待表面电荷回落的采样次数（每次约 500ms，20 次约 10s）
+#define BATTERY_CHARGE_SETTLE_TICKS 20
 
 extern "C" const lv_img_dsc_t bolt;
 
@@ -85,7 +87,7 @@ static void battery_card_construct(lv_obj_t *parent)
     lbl_percent = lv_label_create(battery_body);
     lv_obj_set_style_text_font(lbl_percent, &lv_font_montserrat_12, 0);
     lv_obj_set_style_text_color(lbl_percent, lv_color_white(), 0);
-    lv_label_set_text(lbl_percent, "0%");
+    lv_label_set_text(lbl_percent, "--%");
     lv_obj_center(lbl_percent);
 
     // 电池正极帽
@@ -126,6 +128,7 @@ void battery_card_check()
     static float smooth_voltage = -1.0f;
     static int pending_percent = -1;
     static int pending_count = 0;
+    static int charge_settle_ticks = 0;
 
     if (expanded == false)
     {
@@ -142,12 +145,50 @@ void battery_card_check()
         int16_t voltage = PowerManager_getBatteryVoltage();
         if (voltage > 0)
         {
-            // 指数平滑，抑制 ADC 噪声
+            // 指数平滑，抑制 ADC 噪声（充电期间也持续跟踪，供拔电后恢复使用）
             if (smooth_voltage < 0)
                 smooth_voltage = (float)voltage;
             else
                 smooth_voltage += ((float)voltage - smooth_voltage) * BATTERY_SAMPLE_ALPHA;
+        }
 
+        bool charging = PowerManager_isCharging();
+        if (charging != last_charging)
+        {
+            last_charging = charging;
+            if (charging)
+            {
+                // 充电时电池端电压被充电电路抬高，不能反映真实电量：冻结当前显示值
+                pending_percent = -1;
+                pending_count = 0;
+            }
+            else
+            {
+                // 刚拔掉充电器：等待表面电荷回落后再恢复刷新
+                charge_settle_ticks = BATTERY_CHARGE_SETTLE_TICKS;
+            }
+
+            LOCKLV();
+            if (charging)
+            {
+                // 插入充电器：显示充电标识
+                lv_obj_clear_flag(img_bolt, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_fade_in(img_bolt, 500, 0);
+            }
+            else
+            {
+                // 拔出充电器：隐藏充电标识
+                lv_obj_fade_out(img_bolt, 300, 0);
+            }
+            UNLOCKLV();
+        }
+
+        if (charging == false && charge_settle_ticks > 0)
+            --charge_settle_ticks;
+
+        // 只在不充电且电压稳定后刷新电量，避免插入充电器时直接跳到 100%
+        if (charging == false && charge_settle_ticks == 0 && voltage > 0)
+        {
             int percent = voltageToPercent((int16_t)(smooth_voltage + 0.5f));
 
             // 连续多次采样一致后再刷新，避免数值来回跳动
@@ -184,25 +225,6 @@ void battery_card_check()
                 lv_label_set_text_fmt(lbl_percent, "%d%%", percent);
                 UNLOCKLV();
             }
-        }
-
-        bool charging = PowerManager_isCharging();
-        if (charging != last_charging)
-        {
-            last_charging = charging;
-            LOCKLV();
-            if (charging)
-            {
-                // 插入充电器：显示充电标识
-                lv_obj_clear_flag(img_bolt, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_fade_in(img_bolt, 500, 0);
-            }
-            else
-            {
-                // 拔出充电器：隐藏充电标识
-                lv_obj_fade_out(img_bolt, 300, 0);
-            }
-            UNLOCKLV();
         }
         cnt = 0;
     }
