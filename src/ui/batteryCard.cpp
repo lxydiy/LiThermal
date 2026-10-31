@@ -4,7 +4,7 @@
 #define BATTERY_CARD_X        (-12) // 相对右上角的 x 偏移，负值越大越靠左
 #define BATTERY_CARD_SHOW_Y   2     // 完全可见
 #define BATTERY_CARD_HIDE_Y   (-32)
-#define BATTERY_CARD_WIDTH    84    // 左侧预留充电标识的位置
+#define BATTERY_CARD_WIDTH    64    // 左侧预留充电标识的位置
 #define BATTERY_CARD_HEIGHT   26
 
 // 电池图标尺寸
