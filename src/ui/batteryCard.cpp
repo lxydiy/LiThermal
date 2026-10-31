@@ -4,7 +4,7 @@
 #define BATTERY_CARD_X        (-12) // 相对右上角的 x 偏移，负值越大越靠左
 #define BATTERY_CARD_SHOW_Y   2     // 完全可见
 #define BATTERY_CARD_HIDE_Y   (-32)
-#define BATTERY_CARD_WIDTH    70    // 右侧预留充电标识的位置
+#define BATTERY_CARD_WIDTH    84    // 左侧预留充电标识的位置
 #define BATTERY_CARD_HEIGHT   26
 
 // 电池图标尺寸
@@ -13,8 +13,13 @@
 #define BATTERY_BORDER       2
 #define BATTERY_CAP_W        3
 #define BATTERY_CAP_H        10
-#define BATTERY_CARD_PAD     4   // 图标距卡片左边缘
-#define BATTERY_BOLT_X       (BATTERY_CARD_PAD + BATTERY_BODY_W + BATTERY_CAP_W + 3) // 充电标识的 x 偏移
+#define BATTERY_CARD_PAD     4    // 内容距卡片左边缘
+// 充电标识位于电池图标左侧，插入充电器显示、拔出后隐藏
+#define BATTERY_BOLT_W       12
+#define BATTERY_BOLT_GAP     3
+#define BATTERY_BOLT_X       BATTERY_CARD_PAD
+#define BATTERY_BODY_X       (BATTERY_BOLT_X + BATTERY_BOLT_W + BATTERY_BOLT_GAP)
+#define BATTERY_CAP_X        (BATTERY_BODY_X + BATTERY_BODY_W)
 
 // 电量颜色阈值：低于该百分比显示红色，否则绿色
 #define BATTERY_LOW_THRESHOLD 30
@@ -63,7 +68,7 @@ static void battery_card_construct(lv_obj_t *parent)
     lv_obj_set_style_radius(battery_body, 3, 0);
     lv_obj_set_style_bg_opa(battery_body, 0, 0);
     lv_obj_set_style_pad_all(battery_body, 0, 0);
-    lv_obj_align(battery_body, LV_ALIGN_LEFT_MID, BATTERY_CARD_PAD, 0);
+    lv_obj_align(battery_body, LV_ALIGN_LEFT_MID, BATTERY_BODY_X, 0);
 
     // 电池内部填充
     battery_fill = lv_obj_create(battery_body);
@@ -92,9 +97,9 @@ static void battery_card_construct(lv_obj_t *parent)
     lv_obj_set_style_pad_all(battery_cap, 0, 0);
     lv_obj_set_style_bg_color(battery_cap, lv_color_white(), 0);
     lv_obj_set_style_bg_opa(battery_cap, LV_OPA_COVER, 0);
-    lv_obj_align(battery_cap, LV_ALIGN_LEFT_MID, BATTERY_CARD_PAD + BATTERY_BODY_W, 0);
+    lv_obj_align(battery_cap, LV_ALIGN_LEFT_MID, BATTERY_CAP_X, 0);
 
-    // 充电标识（充电时淡入，位于电池图标右侧预留区域）
+    // 充电标识（位于电池图标左侧；插入充电器显示，拔出后隐藏）
     img_bolt = lv_img_create(parent);
     lv_img_set_src(img_bolt, &bolt);
     lv_obj_align(img_bolt, LV_ALIGN_LEFT_MID, BATTERY_BOLT_X, 0);
@@ -188,10 +193,13 @@ void battery_card_check()
             LOCKLV();
             if (charging)
             {
+                // 插入充电器：显示充电标识
+                lv_obj_clear_flag(img_bolt, LV_OBJ_FLAG_HIDDEN);
                 lv_obj_fade_in(img_bolt, 500, 0);
             }
             else
             {
+                // 拔出充电器：隐藏充电标识
                 lv_obj_fade_out(img_bolt, 300, 0);
             }
             UNLOCKLV();
