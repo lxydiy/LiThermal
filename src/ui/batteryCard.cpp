@@ -41,6 +41,7 @@ static lv_obj_t *img_bolt = NULL;       // 充电闪电图标
 static lv_obj_t *battery_fill = NULL;   // 电池内部填充（宽度/颜色随电量变化）
 static lv_obj_t *lbl_percent = NULL;    // 图标内百分比文字
 static bool expanded = false;
+static bool last_charging = false;
 
 /// @brief 电压(mV)转电量百分比(0~100)
 static int voltageToPercent(int16_t voltage)
@@ -53,6 +54,35 @@ static int voltageToPercent(int16_t voltage)
     else if (percent > 100)
         percent = 100;
     return percent;
+}
+
+/// @brief 充电动画：电池填充宽度往复扫描
+static void battery_anim_width_cb(void *var, int32_t value)
+{
+    lv_obj_set_width((lv_obj_t *)var, (lv_coord_t)value);
+}
+
+static void battery_anim_start()
+{
+    if (battery_fill == NULL)
+        return;
+
+    lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_set_var(&a, battery_fill);
+    lv_anim_set_exec_cb(&a, battery_anim_width_cb);
+    lv_anim_set_values(&a, 0, BATTERY_BODY_W - BATTERY_BORDER * 2);
+    lv_anim_set_time(&a, 1200);
+    lv_anim_set_playback_time(&a, 1200);
+    lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
+    lv_anim_start(&a);
+}
+
+static void battery_anim_stop()
+{
+    if (battery_fill == NULL)
+        return;
+    lv_anim_del(battery_fill, battery_anim_width_cb);
 }
 
 static void battery_card_construct(lv_obj_t *parent)
@@ -117,13 +147,14 @@ static void battery_card_create()
         card_Battery.create(lv_layer_sys(), BATTERY_CARD_X, BATTERY_CARD_HIDE_Y, BATTERY_CARD_WIDTH, BATTERY_CARD_HEIGHT, LV_ALIGN_TOP_RIGHT);
         card_Battery.show(CARD_ANIM_NONE);
         battery_card_construct(card_Battery.obj);
+        // 重建后强制重新应用充电状态（隐藏百分比/启动充电动画）
+        last_charging = false;
     }
 }
 
 void battery_card_check()
 {
     static int cnt = 0;
-    static bool last_charging = false;
     static int last_percent = -1;
     static float smooth_voltage = -1.0f;
     static int pending_percent = -1;
@@ -158,7 +189,7 @@ void battery_card_check()
             last_charging = charging;
             if (charging)
             {
-                // 充电时电池端电压被充电电路抬高，不能反映真实电量：冻结当前显示值
+                // 充电时电压被抬高，无法反映真实电量：清除待确认值
                 pending_percent = -1;
                 pending_count = 0;
             }
@@ -171,14 +202,20 @@ void battery_card_check()
             LOCKLV();
             if (charging)
             {
-                // 插入充电器：显示充电标识
+                // 插入充电器：移除百分比，显示充电标识与充电动画
+                lv_obj_add_flag(lbl_percent, LV_OBJ_FLAG_HIDDEN);
                 lv_obj_clear_flag(img_bolt, LV_OBJ_FLAG_HIDDEN);
                 lv_obj_fade_in(img_bolt, 500, 0);
+                battery_anim_start();
             }
             else
             {
-                // 拔出充电器：隐藏充电标识
+                // 拔出充电器：隐藏充电标识与动画，恢复百分比显示
                 lv_obj_fade_out(img_bolt, 300, 0);
+                battery_anim_stop();
+                lv_obj_set_width(battery_fill,
+                                 (BATTERY_BODY_W - BATTERY_BORDER * 2) * ((last_percent < 0) ? 0 : last_percent) / 100);
+                lv_obj_clear_flag(lbl_percent, LV_OBJ_FLAG_HIDDEN);
             }
             UNLOCKLV();
         }
