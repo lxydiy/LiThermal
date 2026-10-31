@@ -1,11 +1,10 @@
 #include <my_main.h>
 
 // 右上角电量卡片：电池图标 + 图标内百分比
-#define BATTERY_CARD_X        (-4)  // 相对右上角的 x 偏移（负值向左）
+#define BATTERY_CARD_X        (-12) // 相对右上角的 x 偏移，负值越大越靠左
 #define BATTERY_CARD_SHOW_Y   2     // 完全可见
 #define BATTERY_CARD_HIDE_Y   (-32)
-#define BATTERY_CARD_WIDTH    58
-#define BATTERY_CARD_WIDTH_CHARGING (58 + 12)
+#define BATTERY_CARD_WIDTH    70    // 右侧预留充电标识的位置
 #define BATTERY_CARD_HEIGHT   26
 
 // 电池图标尺寸
@@ -15,6 +14,7 @@
 #define BATTERY_CAP_W        3
 #define BATTERY_CAP_H        10
 #define BATTERY_CARD_PAD     4   // 图标距卡片左边缘
+#define BATTERY_BOLT_X       (BATTERY_CARD_PAD + BATTERY_BODY_W + BATTERY_CAP_W + 3) // 充电标识的 x 偏移
 
 // 电量颜色阈值：低于该百分比显示红色，否则绿色
 #define BATTERY_LOW_THRESHOLD 30
@@ -94,10 +94,12 @@ static void battery_card_construct(lv_obj_t *parent)
     lv_obj_set_style_bg_opa(battery_cap, LV_OPA_COVER, 0);
     lv_obj_align(battery_cap, LV_ALIGN_LEFT_MID, BATTERY_CARD_PAD + BATTERY_BODY_W, 0);
 
-    // 充电闪电图标（充电时淡入，位于电池右侧）
+    // 充电标识（充电时淡入，位于电池图标右侧预留区域）
     img_bolt = lv_img_create(parent);
     lv_img_set_src(img_bolt, &bolt);
-    lv_obj_align(img_bolt, LV_ALIGN_RIGHT_MID, -2, 0);
+    lv_obj_align(img_bolt, LV_ALIGN_LEFT_MID, BATTERY_BOLT_X, 0);
+    lv_obj_set_style_img_recolor(img_bolt, lv_color_hex(0xFFD600), 0);
+    lv_obj_set_style_img_recolor_opa(img_bolt, LV_OPA_COVER, 0);
     lv_obj_set_style_opa(img_bolt, 0, 0);
 }
 
@@ -186,12 +188,10 @@ void battery_card_check()
             LOCKLV();
             if (charging)
             {
-                card_Battery.size(BATTERY_CARD_WIDTH_CHARGING, BATTERY_CARD_HEIGHT);
                 lv_obj_fade_in(img_bolt, 500, 0);
             }
             else
             {
-                card_Battery.size(BATTERY_CARD_WIDTH, BATTERY_CARD_HEIGHT);
                 lv_obj_fade_out(img_bolt, 300, 0);
             }
             UNLOCKLV();
